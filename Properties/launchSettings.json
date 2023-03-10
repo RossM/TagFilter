@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TagFilter": {
+      "commandName": "Project",
+      "commandLineArgs": "\"C:\\Users\\rossm\\Pictures\\Grabber\\combined"
+    }
+  }
+}
