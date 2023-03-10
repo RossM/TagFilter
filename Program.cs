@@ -5,6 +5,13 @@ namespace TagFilter
 {
     internal class Program
     {
+        [DllImport("Kernel32.dll", CharSet = CharSet.Unicode)]
+        static extern bool CreateHardLink(
+            string lpFileName,
+            string lpExistingFileName,
+            IntPtr lpSecurityAttributes
+        );
+
         struct FileInfo
         {
             public int Column;
@@ -62,10 +69,12 @@ namespace TagFilter
             var fileInfos = new List<FileInfo>();
 
             const int minCountToInclude = 250;
-            const int minExampleCount = 50;
+            const int minExampleCount = 100;
+
+            string sourceDir = args[0];
+            string destDir = args[1];
 
             Console.WriteLine("Loading tag data...");
-            string sourceDir = args[0];
             foreach (string filePath in Directory.GetFiles(sourceDir, "*.txt"))
             {
                 List<string> tags = File.ReadAllLines(filePath).SelectMany(line => line.Split(new[] { ',' },
@@ -236,11 +245,28 @@ namespace TagFilter
             Console.WriteLine($"Integer result: {result}");
             double integerGoal = solver.get_objective();
             Console.WriteLine($"Integer goal: {integerGoal}");
+
+            var chosenPaths = fileInfos.Where((f, i) => solver.get_var_primalresult(i + 1) > 0.0).Select(f => f.FilePath).ToArray();
+
             using var file = new StreamWriter("output.txt");
-            for (var i = 0; i < fileInfos.Count; i++)
+            foreach (var path in chosenPaths)
+                file.WriteLine(path);
+
+            Console.WriteLine("Creating hardlinks...");
+            CreateHardlinks(chosenPaths, sourceDir, destDir);
+        }
+
+        private static void CreateHardlinks(IEnumerable<string> chosenPaths, string sourceDir, string destDir)
+        {
+            Directory.CreateDirectory(destDir);
+            foreach (var path in chosenPaths)
             {
-                if (solver.get_var_primalresult(i + 1) > 0.0)
-                    file.WriteLine(fileInfos[i].FilePath);
+                foreach (var oldPath in Directory.GetFiles(Path.GetDirectoryName(path) ?? sourceDir,
+                             Path.GetFileNameWithoutExtension(path) + ".*"))
+                {
+                    string newPath = Path.Join(destDir, Path.GetFileName(oldPath));
+                    CreateHardLink(newPath, oldPath, IntPtr.Zero);
+                }
             }
         }
 
