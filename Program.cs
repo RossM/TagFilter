@@ -219,6 +219,7 @@ namespace TagFilter
                 relaxedGoal = solver.get_objective();
             }
             solver.set_verbose(lpsolve_verbosity.NORMAL);
+            solver.write_lp("cuts.lp");
 
             // We'll take any solution within 10% of the relaxed objective
             // solver.set_break_at_value(relaxedGoal * 1.1);
@@ -246,7 +247,7 @@ namespace TagFilter
             double integerGoal = solver.get_objective();
             Console.WriteLine($"Integer goal: {integerGoal}");
 
-            var chosenPaths = fileInfos.Where((f, i) => solver.get_var_primalresult(i + 1) > 0.0).Select(f => f.FilePath).ToArray();
+            var chosenPaths = fileInfos.Where((f, i) => solver.get_var_primalresult(1 + solver.get_Nrows() + i) > 0.0).Select(f => f.FilePath).ToArray();
 
             using var file = new StreamWriter("output.txt");
             foreach (var path in chosenPaths)
@@ -274,16 +275,22 @@ namespace TagFilter
         {
             var indexes = new List<int>();
             double total = 0;
+            double objectiveCheck = 0;
             int colCount = solver.get_Ncolumns();
-            for (int i = 1; i < colCount + 1; i++)
+            int rowCount = solver.get_Nrows();
+            for (int i = 1; i < colCount; i++)
             {
-                double val = solver.get_var_primalresult(i);
+                double val = solver.get_var_primalresult(rowCount + i);
+                objectiveCheck += val;
                 if (val < 1.0)
                 {
                     indexes.Add(i);
                     total += val;
                 }
             }
+
+            if (Math.Abs(objectiveCheck - solver.get_objective()) > 1e-11)
+                return false;
 
             double cutValue = Math.Ceiling(total);
             if (cutValue - total < 1e-11)
