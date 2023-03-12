@@ -2,7 +2,7 @@
   "profiles": {
     "TagFilter": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\rossm\\Pictures\\Grabber\\combined\" "
+      "commandLineArgs": "--tags \"C:\\Users\\rossm\\Pictures\\Grabber\\combined\\*.txt"
     }
   }
 }

@@ -1,8 +1,24 @@
 ﻿using System.Runtime.InteropServices;
+using CommandLine;
 using LpSolveDotNet;
 
 namespace TagFilter
 {
+    internal class Options
+    {
+        [Option(Required = true, HelpText = "Path to input files containing tags")]
+        public string Tags { get; set; } = "";
+
+        [Option(Required = false, HelpText = "Directory to copy selected images to")]
+        public string? OutDir { get; set; }
+
+        [Option(Default = 250, HelpText = "Minimum number of occurrences in the data for a tag to be required")]
+        public int Threshold { get; set; }
+
+        [Option(Default = 100, HelpText = "Minimum number of occurrences of each required tag in the result")]
+        public int Minimum { get; set; }
+    }
+
     internal class Program
     {
         [DllImport("Kernel32.dll", CharSet = CharSet.Unicode)]
@@ -14,7 +30,6 @@ namespace TagFilter
 
         struct FileInfo
         {
-            public int Column;
             public string FilePath;
             public List<string> Tags;
         }
@@ -49,9 +64,9 @@ namespace TagFilter
 
         static bool SequenceSubset(IEnumerable<int> left, IEnumerable<int> right)
         {
-            var rightEnum = right.GetEnumerator();
+            IEnumerator<int> rightEnum = right.GetEnumerator();
             rightEnum.MoveNext();
-            foreach (var leftElem in left)
+            foreach (int leftElem in left)
             {
                 while (rightEnum.Current < leftElem)
                     rightEnum.MoveNext();
@@ -69,14 +84,29 @@ namespace TagFilter
             var tagVarId = new Dictionary<string, int>();
             var fileInfos = new List<FileInfo>();
 
-            const int minCountToInclude = 250;
-            const int minExampleCount = 100;
+            ParserResult<Options> parsed = Parser.Default.ParseArguments<Options>(args);
+            Options options = parsed.Value ?? new Options();
 
-            string sourceDir = args[0];
-            string? destDir = args.Length >= 2 ? args[1] : null;
+            if (parsed.Errors.Any())
+                return;
+
+            int minCountToInclude = options.Threshold;
+            int minExampleCount = options.Minimum;
 
             Console.WriteLine("Loading tag data...");
-            foreach (string filePath in Directory.GetFiles(sourceDir, "*.txt"))
+            string directoryName, searchPattern;
+            if (Directory.Exists(options.Tags))
+            {
+                directoryName = options.Tags;
+                searchPattern = "*.txt";
+            }
+            else
+            {
+                directoryName = Path.GetDirectoryName(options.Tags) ?? Directory.GetCurrentDirectory();
+                searchPattern = Path.GetFileName(options.Tags);
+            }
+
+            foreach (string filePath in Directory.GetFiles(directoryName, searchPattern))
             {
                 List<string> tags = File.ReadAllLines(filePath).SelectMany(line => line.Split(new[] { ',' },
                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).ToList();
@@ -187,7 +217,7 @@ namespace TagFilter
                     long total_iter = solver.get_total_iter();
                     if (total_iter > 0)
                     {
-                        Console.WriteLine($"I:{total_iter} N:{solver.get_total_nodes()} T{TimeSpan.FromSeconds(Math.Floor(solver.time_elapsed()))} G:{solver.get_working_objective().ToString("g4")}");
+                        Console.WriteLine($"I:{total_iter} N:{solver.get_total_nodes()} T{TimeSpan.FromSeconds(Math.Floor(solver.time_elapsed()))} G:{solver.get_working_objective().ToString("F2")}");
                     }
                 }
 
@@ -249,25 +279,25 @@ namespace TagFilter
             double integerGoal = solver.get_objective();
             Console.WriteLine($"Integer goal: {integerGoal}");
 
-            var chosenPaths = fileInfos.Where((f, i) => solver.get_var_primalresult(1 + solver.get_Nrows() + i) > 0.0).Select(f => f.FilePath).ToArray();
+            string[] chosenPaths = fileInfos.Where((f, i) => solver.get_var_primalresult(1 + solver.get_Nrows() + i) > 0.0).Select(f => f.FilePath).ToArray();
 
             using var file = new StreamWriter("output.txt");
-            foreach (var path in chosenPaths)
+            foreach (string path in chosenPaths)
                 file.WriteLine(path);
 
-            if (destDir != null)
+            if (options.OutDir != null)
             {
                 Console.WriteLine("Creating hardlinks...");
-                CreateHardlinks(chosenPaths, sourceDir, destDir);
+                CreateHardlinks(chosenPaths, options.Tags, options.OutDir);
             }
         }
 
         private static void CreateHardlinks(IEnumerable<string> chosenPaths, string sourceDir, string destDir)
         {
             Directory.CreateDirectory(destDir);
-            foreach (var path in chosenPaths)
+            foreach (string path in chosenPaths)
             {
-                foreach (var oldPath in Directory.GetFiles(Path.GetDirectoryName(path) ?? sourceDir,
+                foreach (string oldPath in Directory.GetFiles(Path.GetDirectoryName(path) ?? sourceDir,
                              Path.GetFileNameWithoutExtension(path) + ".*"))
                 {
                     string newPath = Path.Join(destDir, Path.GetFileName(oldPath));
@@ -302,7 +332,7 @@ namespace TagFilter
                 return false;
 
             Console.WriteLine($"Adding integer objective cut on {indexes.Count}/{colCount} columns, value {total} -> {cutValue}");
-            var indexesArray = indexes.ToArray();
+            int[] indexesArray = indexes.ToArray();
             var values = new double[indexesArray.Length];
             Array.Fill(values, 1.0);
             return solver.add_constraintex(indexesArray.Length, values, indexesArray, lpsolve_constr_types.GE,
