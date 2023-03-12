@@ -31,6 +31,7 @@ namespace TagFilter
             "character request",
             "copyright request",
             "fanbox reward",
+            "has bad revision",
             "has censored revision",
             "highres",
             "korean commentary",
@@ -72,14 +73,14 @@ namespace TagFilter
             const int minExampleCount = 100;
 
             string sourceDir = args[0];
-            string destDir = args[1];
+            string? destDir = args.Length >= 2 ? args[1] : null;
 
             Console.WriteLine("Loading tag data...");
             foreach (string filePath in Directory.GetFiles(sourceDir, "*.txt"))
             {
                 List<string> tags = File.ReadAllLines(filePath).SelectMany(line => line.Split(new[] { ',' },
                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).ToList();
-                foreach (string tag in tags.Where(tag => !IgnoredTags.Contains(tag)))
+                foreach (string tag in tags.Except(IgnoredTags))
                 {
                     tagCounts[tag] = tagCounts.GetValueOrDefault(tag) + 1;
                 }
@@ -186,7 +187,7 @@ namespace TagFilter
                     long total_iter = solver.get_total_iter();
                     if (total_iter > 0)
                     {
-                        Console.WriteLine($"I:{total_iter} N:{solver.get_total_nodes()} T{TimeSpan.FromSeconds(solver.time_elapsed())} G:{solver.get_working_objective()}");
+                        Console.WriteLine($"I:{total_iter} N:{solver.get_total_nodes()} T{TimeSpan.FromSeconds(Math.Floor(solver.time_elapsed()))} G:{solver.get_working_objective().ToString("g4")}");
                     }
                 }
 
@@ -211,7 +212,8 @@ namespace TagFilter
             solver.set_verbose(lpsolve_verbosity.CRITICAL);
             for (int iter = 0; iter < maxCuts; iter++)
             {
-                bool added = AddIntegerObjectiveCut(solver);
+                bool added = false;
+                added |= AddIntegerObjectiveCut(solver);
                 if (!added)
                     break;
 
@@ -253,8 +255,11 @@ namespace TagFilter
             foreach (var path in chosenPaths)
                 file.WriteLine(path);
 
-            Console.WriteLine("Creating hardlinks...");
-            CreateHardlinks(chosenPaths, sourceDir, destDir);
+            if (destDir != null)
+            {
+                Console.WriteLine("Creating hardlinks...");
+                CreateHardlinks(chosenPaths, sourceDir, destDir);
+            }
         }
 
         private static void CreateHardlinks(IEnumerable<string> chosenPaths, string sourceDir, string destDir)
@@ -275,13 +280,13 @@ namespace TagFilter
         {
             var indexes = new List<int>();
             double total = 0;
-            double objectiveCheck = 0;
+            //double objectiveCheck = 0;
             int colCount = solver.get_Ncolumns();
             int rowCount = solver.get_Nrows();
             for (int i = 1; i < colCount; i++)
             {
                 double val = solver.get_var_primalresult(rowCount + i);
-                objectiveCheck += val;
+                //objectiveCheck += val;
                 if (val < 1.0)
                 {
                     indexes.Add(i);
@@ -289,8 +294,8 @@ namespace TagFilter
                 }
             }
 
-            if (Math.Abs(objectiveCheck - solver.get_objective()) > 1e-11)
-                return false;
+            //if (Math.Abs(objectiveCheck - solver.get_objective()) > 1e-11)
+            //    return false;
 
             double cutValue = Math.Ceiling(total);
             if (cutValue - total < 1e-11)
