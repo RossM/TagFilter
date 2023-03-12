@@ -2,7 +2,7 @@
   "profiles": {
     "TagFilter": {
       "commandName": "Project",
-      "commandLineArgs": "--tags \"C:\\Users\\rossm\\Pictures\\Grabber\\combined\\*.txt"
+      "commandLineArgs": "--tags \"C:\\Users\\rossm\\Pictures\\Grabber\\combined\\*.txt\"\r\n--outdir \"C:\\Users\\rossm\\Pictures\\Grabber\\combined reduced 2\"\r\n--threshold 150"
     }
   }
 }

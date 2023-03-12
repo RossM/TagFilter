@@ -5,20 +5,13 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PlatformTarget>x86</PlatformTarget>
+    <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
 
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
-    <PackageReference Include="LpSolveDotNet" Version="4.0.0" />
-  </ItemGroup>
-
-
-  <ItemGroup>
-    <None Update="lpsolve55.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <PackageReference Include="Google.OrTools" Version="9.5.2237" />
   </ItemGroup>
 
 </Project>
